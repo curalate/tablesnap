@@ -158,6 +158,13 @@ class UploadHandler(pyinotify.ProcessEvent):
             raise
 
         if key.size != stat.st_size:
+            # LeveledCompaction uses .json files to keep track of what SSTables
+            # are in each level. As such, they are mutable and need to be kept
+            # up to date.
+            if filename.endswith('.json'):
+                self.log.info('Discrepancy in size of JSON file (%s), will '
+                    'upload local copy.' % (filename))
+                return False
             self.log.warning('ATTENTION: your source (%s) and target (%s) '
                 'sizes differ, you should take a look. As immutable files '
                 'never change, one must assume the local file got corrupted '
