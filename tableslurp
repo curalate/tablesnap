@@ -30,7 +30,6 @@ import socket
 import sys
 from Queue import Queue
 import itertools
-import collections
 
 log = logging.getLogger('tableslurp')
 stderr = logging.StreamHandler()
@@ -117,20 +116,24 @@ class DownloadHandler(object):
                 (self.prefix, target_file))]
 #       Otherwise try to fetch the most recent one
         else:
-            partitioned_keys = collections.defaultdict(list)
+            recent_keys = dict()
 
-            # Partition the keys by directory (Column Family)
-            # Assumes /././<CF_NAME>/<FILENAME> pattern
+            # Iterate over all keys in the bucket and save the most recently
+            # modified file for each directory (Column Family). Assumes key
+            # pattern like /path/to/your/<CF_NAME>/<FILENAME>
             for key in itertools.ifilter(
                     lambda k: k.key.endswith("-listdir.json"),
                     bucket.list(prefix='%s/' % (self.prefix,))):
                 directory = key.key.split("/")[-2]
-                partitioned_keys[directory].append(key)
+                if directory not in recent_keys:
+                    recent_keys[directory] = key
+                    continue
 
-            # Grab most recently updated file for each directory
-            for _, ks in partitioned_keys.iteritems():
-                ks.sort(key=lambda l: parser.parse(l.last_modified))
-                keys.append(ks.pop())
+                if (parser.parse(recent_keys[directory].last_modified) <
+                        parser.parse(key.last_modified)):
+                    recent_keys[directory] = key
+
+            keys = recent_keys.values()
 
         keys = list(itertools.ifilter(None, keys))
 
