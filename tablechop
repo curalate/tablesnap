@@ -9,6 +9,7 @@ import logging
 import os
 import socket
 import sys
+import itertools
 
 from datetime import datetime
 from dateutil import parser as dtparser
@@ -32,6 +33,9 @@ def clean_backups(args, log):
     if not args.name:
         args.name = socket.getfqdn()
 
+    assert (args.path.endswith("/") and args.path.startswith("/")), \
+        "Path must start and end with a '/'"
+
     try:
         s3conn = boto.connect_s3(args.key, args.secret)
         bucket = s3conn.get_bucket(args.bucket)
@@ -40,64 +44,81 @@ def clean_backups(args, log):
         sys.exit(1)
 
     try:
-        key_list = bucket.list("%s:%s" % (args.name, args.path))
+        dir_list = list(bucket.list("%s:%s" % (args.name, args.path), "/"))
     except boto.exception.BotoServerError, e:
         log.error('Problem getting keys from S3 bucket: %s', e)
         sys.exit(1)
 
     log.info("Connected to S3, getting keys ...")
 
-    json_keys = []
-    to_delete = set() # we'll remove from this list
-    for k in sorted(
-        key_list,
-        key=lambda k: dtparser.parse(k.last_modified),
-        reverse=True, # most recent first
-    ):
-        to_delete.add(k.name)
-        if k.name.endswith('-listdir.json'):
-            json_keys.append(k)
+    for directory in dir_list:
+        log.info("Fetching all keys for %s" % directory.name)
+        try:
+            key_list = bucket.list(directory.name)
+        except boto.exception.BotoServerError, e:
+            log.error('Problem getting keys from S3 bucket: %s', e)
 
-    log.info("%s keys total", len(to_delete))
-    log.debug("%s json listdir keys", len(json_keys))
+        json_keys = []
+        to_delete = set() # we'll remove from this list
+        for k in sorted(
+            key_list,
+            key=lambda k: dtparser.parse(k.last_modified),
+            reverse=True, # most recent first
+        ):
+            to_delete.add(k.name)
+            if k.name.endswith('-listdir.json'):
+                json_keys.append(k)
 
-    for jkey in json_keys:
-        log.debug("key dated : %s (%s)", jkey.last_modified,
-                  jkey.name.split('/')[-1])
-        if days_ago(jkey.last_modified) > args.age:
-            # We've gone back past our cutoff
-            log.info("reached cutoff at timestamp %s", jkey.last_modified)
-            break
-        ky = bucket.get_key(jkey)
-        jdict = json.loads(ky.get_contents_as_string())
-        if len(jdict.values()) != 1:
-            raise SystemError('-listdir.json file should have '
-                'a single key/value pair!')
-        dirname = jdict.keys()[0]
-        # fullpaths here since some files are in subdirectories
-        fullpaths = [os.path.join(dirname, x) for x in jdict.values()[0]]
-        for x in fullpaths:
-            key_to_keep = '%s:%s' % (args.name, x)
-            if key_to_keep in to_delete:
-                to_delete.remove(key_to_keep)
-        if jkey.name in to_delete:
-            to_delete.remove(jkey.name)
+        total_keys = len(to_delete)
+        log.info("%s keys total", total_keys)
+        log.debug("%s json listdir keys", len(json_keys))
 
-    if args.debug:
-        log.debug("%s non-keeper keys to delete", len(to_delete))
+        for jkey in json_keys:
+            log.debug("key dated : %s (%s)", jkey.last_modified,
+                      jkey.name.split('/')[-1])
+            if days_ago(jkey.last_modified) > args.age:
+                # We've gone back past our cutoff
+                log.info("reached cutoff at timestamp %s", jkey.last_modified)
+                break
+            ky = bucket.get_key(jkey)
+            jdict = json.loads(ky.get_contents_as_string())
+            if len(jdict.values()) != 1:
+                raise SystemError('-listdir.json file should have '
+                    'a single key/value pair!')
+            dirname = jdict.keys()[0]
+            # fullpaths here since some files are in subdirectories
+            fullpaths = [os.path.join(dirname, x) for x in jdict.values()[0]]
+            for x in fullpaths:
+                key_to_keep = '%s:%s' % (args.name, x)
+                if key_to_keep in to_delete:
+                    to_delete.remove(key_to_keep)
+            if jkey.name in to_delete:
+                to_delete.remove(jkey.name)
+
+        log.info("%s non-keeper keys to delete", len(to_delete))
         ddates = list(set([x.last_modified[:10] for x in key_list \
                            if x.name in to_delete]))
         ddates.sort()
-        log.debug("deletion dates : %s", ddates)
-        log.debug("Test mode, nothing deleted")
-        return
+        log.info("deletion dates : %s", ddates)
 
-    log.info("Deleting %s keys", len(to_delete))
+        if args.debug:
+            log.debug("Test mode, nothing deleted")
+            continue
 
-    try:
-        bucket.delete_keys(to_delete) # !!
-    except Exception as e:
-        log.error('S3 delete ERR, will try again later [%s]', e)
+        if total_keys == len(to_delete):
+            log.info("No keeper files found in provided time range, skipping "
+                "directory rather than deleting all files.")
+            continue
+
+        log.info("Deleting %s keys", len(to_delete))
+
+        # Delete in chunks of 1000
+        for chunk in itertools.izip_longest(*[iter(to_delete)] * 1000):
+            chunk = filter(None, chunk)
+            try:
+                bucket.delete_keys(chunk) # !!
+            except Exception as e:
+                log.error('S3 delete ERR, will try again later [%s]', e)
 
     log.info("Keys deleted")
 
