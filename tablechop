@@ -76,7 +76,7 @@ def clean_backups(args, log):
         for jkey in json_keys:
             log.debug("key dated : %s (%s)", jkey.last_modified,
                       jkey.name.split('/')[-1])
-            if days_ago(jkey.last_modified) > args.age:
+            if days_ago(jkey.last_modified) >= args.age:
                 # We've gone back past our cutoff
                 log.info("reached cutoff at timestamp %s", jkey.last_modified)
                 break
