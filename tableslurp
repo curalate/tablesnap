@@ -102,7 +102,7 @@ class DownloadHandler(object):
 #       unsure if boto is thread-safe, will reconnect every time
         log.debug('Connecting to s3')
         conn = boto.connect_s3(self.key, self.secret)
-        bucket = conn.get_bucket(self.bucket_name)
+        bucket = conn.get_bucket(self.bucket_name, validate=False)
         log.debug('Connected to s3')
         return bucket
 
