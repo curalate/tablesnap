@@ -106,7 +106,7 @@ class UploadHandler(pyinotify.ProcessEvent):
     def get_bucket(self):
         # Reconnect to S3
         s3 = boto.connect_s3(self.key, self.secret)
-        return s3.get_bucket(self.bucket_name)
+        return s3.get_bucket(self.bucket_name, validate=False)
 
     def worker(self):
         bucket = self.get_bucket()
@@ -486,7 +486,7 @@ def main():
     # Check S3 credentials only. We reconnect per-thread to avoid any
     # potential thread-safety problems.
     s3 = boto.connect_s3(args.aws_key, args.aws_secret)
-    bucket = s3.get_bucket(args.bucket)
+    bucket = s3.get_bucket(args.bucket, validate=False)
 
     handler = UploadHandler(threads=args.threads, key=args.aws_key,
                             secret=args.aws_secret, bucket_name=bucket,
