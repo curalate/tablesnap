@@ -37,7 +37,7 @@ def clean_backups(args, log):
         "Path must start and end with a '/'"
 
     try:
-        s3conn = boto.connect_s3(args.key, args.secret)
+        s3conn = boto.connect_s3()
         bucket = s3conn.get_bucket(args.bucket, validate=False)
     except boto.exception.BotoServerError, e:
         log.error('Problem initializing S3 connection: %s', e)
@@ -134,18 +134,6 @@ def main(log):
         dest='debug',
         action='store_true',
         help='Run in debug mode, will not delete keys. Implies -v')
-    parser.add_argument(
-        '-k',
-        '--key',
-        required=True,
-        dest='key',
-        help='Amazon S3 Key')
-    parser.add_argument(
-        '-s',
-        '--secret',
-        required=True,
-        dest='secret',
-        help='Amazon S3 Secret')
     parser.add_argument(
         '-n',
         '--name',

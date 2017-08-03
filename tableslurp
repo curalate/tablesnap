@@ -54,8 +54,6 @@ class DownloadCounter(object):
 
 
 class DownloadHandler(object):
-    key = None
-    secret = None
     bucket_name = None
     owner = None
     group = None
@@ -74,8 +72,6 @@ class DownloadHandler(object):
         self.target = args.target[0]
         self.origin = args.origin[0]
         self.preserve = args.preserve
-        self.key = args.aws_key
-        self.secret = args.aws_secret
         self.bucket_name = args.bucket[0]
         self.num_threads = args.threads
         self.force = args.force
@@ -101,7 +97,7 @@ class DownloadHandler(object):
     def _get_bucket(self):
 #       unsure if boto is thread-safe, will reconnect every time
         log.debug('Connecting to s3')
-        conn = boto.connect_s3(self.key, self.secret)
+        conn = boto.connect_s3()
         bucket = conn.get_bucket(self.bucket_name, validate=False)
         log.debug('Connected to s3')
         return bucket
@@ -311,10 +307,6 @@ def main():
         'code is straightforward, the program assumes the files you are '
         'restoring got previously backed up with `tablesnap`',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    ap.add_argument('-k', '--aws-key',
-        required=True, help='Amazon S3 key')
-    ap.add_argument('-s', '--aws-secret',
-        required=True, help='Amazon S3 secret')
     ap.add_argument('-p', '--preserve', default=False, action='store_true',
         help='Preserve the permissions (if they exist) from the source. '
         'This overrides -o and -g')

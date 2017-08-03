@@ -57,15 +57,13 @@ default_listen_event = 'IN_MOVED_TO'
 
 
 class UploadHandler(pyinotify.ProcessEvent):
-    def my_init(self, threads=None, key=None, secret=None, bucket_name=None,
+    def my_init(self, threads=None, bucket_name=None,
                 prefix=None, name=None, max_size=None, chunk_size=None,
                 include=None,
                 with_index=True,
                 keyname_separator=None,
                 log=default_log,
                 md5_on_start=False):
-        self.key = key
-        self.secret = secret
         self.bucket_name = bucket_name
         self.prefix = prefix
         self.name = name or socket.getfqdn()
@@ -105,7 +103,7 @@ class UploadHandler(pyinotify.ProcessEvent):
 
     def get_bucket(self):
         # Reconnect to S3
-        s3 = boto.connect_s3(self.key, self.secret)
+        s3 = boto.connect_s3()
         return s3.get_bucket(self.bucket_name, validate=False)
 
     def worker(self):
@@ -427,8 +425,6 @@ def main():
         'the time of the copy.')
     parser.add_argument('bucket', help='S3 bucket')
     parser.add_argument('paths', nargs='+', help='Paths to be watched')
-    parser.add_argument('-k', '--aws-key', required=True)
-    parser.add_argument('-s', '--aws-secret', required=True)
     parser.add_argument('-r', '--recursive', action='store_true',
         default=False,
         help='Recursively watch the given path(s)s for new SSTables')
@@ -485,11 +481,10 @@ def main():
 
     # Check S3 credentials only. We reconnect per-thread to avoid any
     # potential thread-safety problems.
-    s3 = boto.connect_s3(args.aws_key, args.aws_secret)
+    s3 = boto.connect_s3()
     bucket = s3.get_bucket(args.bucket, validate=False)
 
-    handler = UploadHandler(threads=args.threads, key=args.aws_key,
-                            secret=args.aws_secret, bucket_name=bucket,
+    handler = UploadHandler(threads=args.threads, bucket_name=bucket,
                             prefix=args.prefix, name=args.name,
                             include=include,
                             with_index=(not args.without_index),

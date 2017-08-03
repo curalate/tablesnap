@@ -63,7 +63,7 @@ the Debian package, you'll set these options in the `DAEMON_OPTS` variable in
 `/etc/default/tablesnap`.
 
 ```
-usage: tablesnap [-h] -k AWS_KEY -s AWS_SECRET [-r] [-a] [-B] [-p PREFIX]
+usage: tablesnap [-h] [-r] [-a] [-B] [-p PREFIX]
                  [--without-index] [--keyname-separator KEYNAME_SEPARATOR]
                  [-t THREADS] [-n NAME] [-e EXCLUDE | -i INCLUDE]
                  [--listen-events {IN_MOVED_TO,IN_CLOSE_WRITE}]
@@ -82,8 +82,6 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  -k AWS_KEY, --aws-key AWS_KEY
-  -s AWS_SECRET, --aws-secret AWS_SECRET
   -r, --recursive       Recursively watch the given path(s)s for new SSTables
   -a, --auto-add        Automatically start watching new subdirectories within
                         path(s)
@@ -121,7 +119,7 @@ optional arguments:
 
 For example:
 
-	$ tablesnap -k AAAAAAAAAAAAAAAA -s BBBBBBBBBBBBBBBB me.synack.sstables /var/lib/cassandra/data/GiantKeyspace
+	$ tablesnap me.synack.sstables /var/lib/cassandra/data/GiantKeyspace
 
 This would cause tablesnap to use the given Amazon Web Services credentials to
 backup the SSTables for my `GiantKeyspace` to the S3 bucket named
